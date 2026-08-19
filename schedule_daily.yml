@@ -1,0 +1,30 @@
+name: Generate daily posting schedule
+
+on: {schedule: [{cron: "5 0 * * *"}], workflow_dispatch: {}}
+
+permissions:
+  contents: write
+
+jobs:
+  generate-schedule:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate today's schedule
+        run: python main_schedule.py
+
+      - name: Commit schedule.json
+        run: |
+          git config user.name "auto-post-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add schedule.json
+          git diff --cached --quiet || git commit -m "chore: generate today's posting schedule"
+          git push
