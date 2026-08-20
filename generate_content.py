@@ -6,8 +6,8 @@ import requests
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
-# 정식 지원되는 Claude 모델 ID
-MODEL = "claude-3-5-sonnet-20241022"
+# 호환되는 최신 Claude 모델 ID
+MODEL = "claude-3-5-sonnet-latest"
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +126,7 @@ Hashtags:
 - Mix Thai and English hashtags naturally.
 - Examples:
   K-pop/dance: #Kpop #เต้น
-  Anime: #อนิ메ะ #DemonSlayer
+  Anime: #อนิเมะ #DemonSlayer
   University: #ชีวิตมหาลัย
   Bangkok daily life: #กรุงเทพ #Bangkok
   Cafe/food: #คาเฟ่ #ของกิน
