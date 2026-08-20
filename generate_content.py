@@ -8,7 +8,10 @@ from PIL import Image
 
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 client = genai.Client(api_key=GEMINI_API_KEY)
-MODEL = "gemini-3.6-flash"
+
+# 백업 모델 지정 (503 에러 발생 시 자동 전환)
+PRIMARY_MODEL = "gemini-3.6-flash"
+BACKUP_MODEL = "gemini-2.5-flash"
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
@@ -64,7 +67,7 @@ def get_latest_telegram_image() -> str | None:
         for update in res["result"]:
             msg = update.get("message") or update.get("channel_post") or {}
             if "photo" in msg:
-                photo_info = msg["photo"][-1]  # 가장 화질 높은 이미지
+                photo_info = msg["photo"][-1]
                 photos.append(photo_info["file_id"])
 
         if not photos:
@@ -102,44 +105,49 @@ def generate_tweet(topic_text: str | None = None) -> str:
     if topic_text is None:
         topic_text = pick_topic()
 
-    for attempt in range(3):
-        try:
-            response = client.models.generate_content(
-                model=MODEL,
-                contents=f"Write today's tweet for Nicha. Topic angle: {topic_text}",
-                config=types.GenerateContentConfig(
-                    system_instruction=PERSONA_SYSTEM_PROMPT,
-                    temperature=0.7,
-                ),
-            )
-            return response.text.strip().strip('"').strip("'").strip()
-        except Exception as e:
-            if attempt < 2:
+    models_to_try = [PRIMARY_MODEL, BACKUP_MODEL]
+
+    for model_name in models_to_try:
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=f"Write today's tweet for Nicha. Topic angle: {topic_text}",
+                    config=types.GenerateContentConfig(
+                        system_instruction=PERSONA_SYSTEM_PROMPT,
+                        temperature=0.7,
+                    ),
+                )
+                return response.text.strip().strip('"').strip("'").strip()
+            except Exception as e:
+                print(f"[{model_name}] 시도 {attempt + 1} 실패: {e}")
                 time.sleep(5)
-            else:
-                raise e
+
+    raise Exception("모든 Gemini 모델 및 재시도 실패")
 
 
 def generate_tweet_with_image(image_path: str) -> str:
     """이미지 분석 기반 트윗 생성"""
     img = Image.open(image_path)
+    models_to_try = [PRIMARY_MODEL, BACKUP_MODEL]
 
-    for attempt in range(3):
-        try:
-            response = client.models.generate_content(
-                model=MODEL,
-                contents=[
-                    img,
-                    "Write today's tweet based on this image from Nicha's perspective.",
-                ],
-                config=types.GenerateContentConfig(
-                    system_instruction=PERSONA_SYSTEM_PROMPT,
-                    temperature=0.7,
-                ),
-            )
-            return response.text.strip().strip('"').strip("'").strip()
-        except Exception as e:
-            if attempt < 2:
+    for model_name in models_to_try:
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[
+                        img,
+                        "Write today's tweet based on this image from Nicha's perspective.",
+                    ],
+                    config=types.GenerateContentConfig(
+                        system_instruction=PERSONA_SYSTEM_PROMPT,
+                        temperature=0.7,
+                    ),
+                )
+                return response.text.strip().strip('"').strip("'").strip()
+            except Exception as e:
+                print(f"[{model_name}] 시도 {attempt + 1} 실패: {e}")
                 time.sleep(5)
-            else:
-                raise e
+
+    raise Exception("모든 Gemini 모델 및 재시도 실패")
