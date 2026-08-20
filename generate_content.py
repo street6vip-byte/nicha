@@ -1,13 +1,15 @@
 import os
 import random
-import base64
-import requests
+from google import genai
+from google.genai import types
+from PIL import Image
 
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
-ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+# Gemini API 클라이언트 초기화
+GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 모든 계정 및 Vision API와 100% 호환되는 Haiku 모델
-MODEL = "claude-3-haiku-20240307"
+# 최신 무료 지원 모델
+MODEL = "gemini-2.5-flash"
 
 
 # ---------------------------------------------------------------------------
@@ -204,85 +206,32 @@ def generate_tweet(topic_text: str | None = None) -> str:
     if topic_text is None:
         topic_text = pick_topic()
 
-    response = requests.post(
-        ANTHROPIC_API_URL,
-        headers={
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        json={
-            "model": MODEL,
-            "max_tokens": 300,
-            "system": PERSONA_SYSTEM_PROMPT,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": f"Write today's tweet for Nicha. Topic angle to draw from: {topic_text}",
-                }
-            ],
-        },
-        timeout=30,
+    response = client.models.generate_content(
+        model=MODEL,
+        contents=f"Write today's tweet for Nicha. Topic angle to draw from: {topic_text}",
+        config=types.GenerateContentConfig(
+            system_instruction=PERSONA_SYSTEM_PROMPT,
+            temperature=0.7,
+        ),
     )
-    response.raise_for_status()
-    data = response.json()
-    tweet_text = "".join(block["text"] for block in data["content"] if block["type"] == "text").strip()
+    tweet_text = response.text.strip()
     return tweet_text.strip('"').strip("'").strip()
 
 
 def generate_tweet_with_image(image_path: str) -> str:
-    """이미지 분석 기반 트윗 생성 (확장자별 미디어 타입 자동 처리)"""
-    with open(image_path, "rb") as f:
-        encoded_img = base64.b64encode(f.read()).decode("utf-8")
+    """이미지 분석 기반 트윗 생성 (Pillow 이미지 전달)"""
+    img = Image.open(image_path)
 
-    ext = os.path.splitext(image_path)[1].lower()
-    if ext == ".png":
-        media_type = "image/png"
-    elif ext == ".webp":
-        media_type = "image/webp"
-    elif ext == ".gif":
-        media_type = "image/gif"
-    else:
-        media_type = "image/jpeg"
-
-    response = requests.post(
-        ANTHROPIC_API_URL,
-        headers={
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        json={
-            "model": MODEL,
-            "max_tokens": 300,
-            "system": PERSONA_SYSTEM_PROMPT,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type,
-                                "data": encoded_img,
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": "Write today's tweet based on this image from Nicha's perspective."
-                        }
-                    ],
-                }
-            ],
-        },
-        timeout=30,
+    response = client.models.generate_content(
+        model=MODEL,
+        contents=[
+            img,
+            "Write today's tweet based on this image from Nicha's perspective."
+        ],
+        config=types.GenerateContentConfig(
+            system_instruction=PERSONA_SYSTEM_PROMPT,
+            temperature=0.7,
+        ),
     )
-
-    if not response.ok:
-        print(f"API Error Detail: {response.text}")
-
-    response.raise_for_status()
-    data = response.json()
-    tweet_text = "".join(b["text"] for b in data["content"] if b["type"] == "text").strip()
+    tweet_text = response.text.strip()
     return tweet_text.strip('"').strip("'").strip()
