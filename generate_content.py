@@ -236,8 +236,15 @@ def generate_tweet_with_image(image_path: str) -> str:
     with open(image_path, "rb") as f:
         encoded_img = base64.b64encode(f.read()).decode("utf-8")
 
-    ext = os.path.splitext(image_path)[1].lower()
-    media_type = "image/png" if ext == ".png" else "image/jpeg"
+  ext = os.path.splitext(image_path)[1].lower()
+if ext == ".png":
+    media_type = "image/png"
+elif ext == ".webp":
+    media_type = "image/webp"
+elif ext == ".gif":
+    media_type = "image/gif"
+else:
+    media_type = "image/jpeg"
 
     response = requests.post(
         ANTHROPIC_API_URL,
