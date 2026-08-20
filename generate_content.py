@@ -49,23 +49,26 @@ def pick_topic() -> str:
 def get_latest_telegram_image() -> str | None:
     """텔레그램 봇으로 전송된 가장 최근 사진을 다운로드"""
     if not TELEGRAM_BOT_TOKEN:
+        print("TELEGRAM_BOT_TOKEN이 설정되지 않았습니다.")
         return None
 
     try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?limit=100"
         res = requests.get(url, timeout=10).json()
 
         if not res.get("ok") or not res.get("result"):
+            print(f"텔레그램 응답 없음 또는 결과 비어있음: {res}")
             return None
 
         photos = []
         for update in res["result"]:
-            message = update.get("message", {})
-            if "photo" in message:
-                photo_info = message["photo"][-1]
+            msg = update.get("message") or update.get("channel_post") or {}
+            if "photo" in msg:
+                photo_info = msg["photo"][-1]  # 가장 화질 높은 이미지
                 photos.append(photo_info["file_id"])
 
         if not photos:
+            print("텔레그램 최근 메시지 중 사진을 찾지 못했습니다.")
             return None
 
         latest_file_id = photos[-1]
@@ -73,6 +76,9 @@ def get_latest_telegram_image() -> str | None:
             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={latest_file_id}",
             timeout=10,
         ).json()
+
+        if not file_info.get("ok"):
+            return None
 
         file_path = file_info["result"]["file_path"]
         img_data = requests.get(
@@ -84,6 +90,7 @@ def get_latest_telegram_image() -> str | None:
         with open(save_path, "wb") as f:
             f.write(img_data)
 
+        print(f"텔레그램 사진 다운로드 성공: {save_path}")
         return save_path
     except Exception as e:
         print(f"텔레그램 이미지 로드 실패: {e}")
