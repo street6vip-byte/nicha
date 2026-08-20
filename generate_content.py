@@ -1,5 +1,6 @@
 import os
 import random
+import time
 from google import genai
 from google.genai import types
 from PIL import Image
@@ -202,36 +203,50 @@ def pick_topic() -> str:
 
 
 def generate_tweet(topic_text: str | None = None) -> str:
-    """텍스트 전용 트윗 생성"""
+    """텍스트 전용 트윗 생성 (자동 재시도 적용)"""
     if topic_text is None:
         topic_text = pick_topic()
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=f"Write today's tweet for Nicha. Topic angle to draw from: {topic_text}",
-        config=types.GenerateContentConfig(
-            system_instruction=PERSONA_SYSTEM_PROMPT,
-            temperature=0.7,
-        ),
-    )
-    tweet_text = response.text.strip()
-    return tweet_text.strip('"').strip("'").strip()
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model=MODEL,
+                contents=f"Write today's tweet for Nicha. Topic angle to draw from: {topic_text}",
+                config=types.GenerateContentConfig(
+                    system_instruction=PERSONA_SYSTEM_PROMPT,
+                    temperature=0.7,
+                ),
+            )
+            tweet_text = response.text.strip()
+            return tweet_text.strip('"').strip("'").strip()
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(5)
+            else:
+                raise e
 
 
 def generate_tweet_with_image(image_path: str) -> str:
-    """이미지 분석 기반 트윗 생성 (Pillow 이미지 전달)"""
+    """이미지 분석 기반 트윗 생성 (자동 재시도 적용)"""
     img = Image.open(image_path)
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=[
-            img,
-            "Write today's tweet based on this image from Nicha's perspective."
-        ],
-        config=types.GenerateContentConfig(
-            system_instruction=PERSONA_SYSTEM_PROMPT,
-            temperature=0.7,
-        ),
-    )
-    tweet_text = response.text.strip()
-    return tweet_text.strip('"').strip("'").strip()
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model=MODEL,
+                contents=[
+                    img,
+                    "Write today's tweet based on this image from Nicha's perspective."
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=PERSONA_SYSTEM_PROMPT,
+                    temperature=0.7,
+                ),
+            )
+            tweet_text = response.text.strip()
+            return tweet_text.strip('"').strip("'").strip()
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(5)
+            else:
+                raise e
