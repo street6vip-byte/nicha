@@ -12,7 +12,7 @@ import requests
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
-MODEL = "claude-sonnet-5"
+MODEL = "claude-3-5-sonnet-latest"
 
 
 # ---------------------------------------------------------------------------
