@@ -8,8 +8,8 @@ from PIL import Image
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 최신 안정적인 Gemini 모델 ID
-MODEL = "gemini-2.0-flash"
+# 최신 Gemini 모델 ID
+MODEL = "gemini-3.6-flash"
 
 
 # ---------------------------------------------------------------------------
