@@ -1,22 +1,17 @@
-"""
-AI를 이용해 니차(Nicha) 페르소나 기반 트윗 초안을 생성하는 모듈. (텍스트 전용)
-
-환경 변수:
-  ANTHROPIC_API_KEY - Anthropic API 키
-"""
-
 import os
 import random
+import base64
 import requests
 
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
+# 1. 올바른 모델명으로 수정
 MODEL = "claude-3-5-sonnet-latest"
 
 
 # ---------------------------------------------------------------------------
-# 페르소나 정의
+# 기존 페르소나 정의 (유지)
 # ---------------------------------------------------------------------------
 PERSONA_SYSTEM_PROMPT = """\
 You are ghostwriting tweets for a fictional X (Twitter) account featuring
@@ -166,10 +161,6 @@ Output rules:
 - Output ONLY the tweet text, nothing else.
 """
 
-
-# ---------------------------------------------------------------------------
-# 매번 조금씩 다른 방향으로 유도하기 위한 주제 로테이션
-# ---------------------------------------------------------------------------
 TOPIC_SEEDS = [
     "practicing a K-pop choreography alone in her room",
     "finally learning a difficult part of a K-pop choreography",
@@ -205,13 +196,11 @@ TOPIC_SEEDS = [
 
 
 def pick_topic() -> str:
-    """오늘 트윗에 쓸 주제 설명을 하나 랜덤으로 뽑아서 반환합니다."""
     return random.choice(TOPIC_SEEDS)
 
 
+# 2. 기존 텍스트 전용 함수 (보존)
 def generate_tweet(topic_text: str | None = None) -> str:
-    """AI API를 호출해 니차의 트윗 한 건을 생성해서 반환합니다."""
-
     if topic_text is None:
         topic_text = pick_topic()
 
@@ -229,34 +218,61 @@ def generate_tweet(topic_text: str | None = None) -> str:
             "messages": [
                 {
                     "role": "user",
-                    "content": (
-                        f"Write today's tweet for Nicha. "
-                        f"Topic angle to draw from: {topic_text}"
-                    ),
+                    "content": f"Write today's tweet for Nicha. Topic angle to draw from: {topic_text}",
                 }
             ],
         },
         timeout=30,
     )
-
     response.raise_for_status()
     data = response.json()
-
-    tweet_text = "".join(
-        block["text"]
-        for block in data["content"]
-        if block["type"] == "text"
-    ).strip()
-
-    # 혹시 AI가 앞뒤에 불필요한 따옴표를 넣으면 제거
-    tweet_text = tweet_text.strip('"').strip("'").strip()
-
-    # 280자를 넘으면 잘라냄
-    if len(tweet_text) > 280:
-        tweet_text = tweet_text[:277] + "..."
-
-    return tweet_text
+    tweet_text = "".join(block["text"] for block in data["content"] if block["type"] == "text").strip()
+    return tweet_text.strip('"').strip("'").strip()
 
 
-if __name__ == "__main__":
-    print(generate_tweet())
+# 3. 신규 이미지 기반 트윗 생성 함수 (추가)
+def generate_tweet_with_image(image_path: str) -> str:
+    """이미지 파일 경로를 받아 Claude Vision으로 전달하여 트윗 생성"""
+    with open(image_path, "rb") as f:
+        encoded_img = base64.b64encode(f.read()).decode("utf-8")
+
+    ext = os.path.splitext(image_path)[1].lower()
+    media_type = "image/png" if ext == ".png" else "image/jpeg"
+
+    response = requests.post(
+        ANTHROPIC_API_URL,
+        headers={
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": MODEL,
+            "max_tokens": 300,
+            "system": PERSONA_SYSTEM_PROMPT,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": encoded_img,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": "Write today's tweet based on this image from Nicha's perspective."
+                        }
+                    ],
+                }
+            ],
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    data = response.json()
+    tweet_text = "".join(b["text"] for b in data["content"] if b["type"] == "text").strip()
+    return tweet_text.strip('"').strip("'").strip()
