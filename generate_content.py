@@ -7,7 +7,7 @@ ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
 # 1. 올바른 모델명으로 수정
-MODEL = "claude-3-5-sonnet-latest"
+MODEL = "claude-3-5-sonnet-20241022"
 
 
 # ---------------------------------------------------------------------------
