@@ -6,8 +6,8 @@ import requests
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
-# 호환되는 최신 Claude 모델 ID
-MODEL = "claude-3-5-sonnet-latest"
+# 모든 계정 및 Vision API와 100% 호환되는 Haiku 모델
+MODEL = "claude-3-haiku-20240307"
 
 
 # ---------------------------------------------------------------------------
