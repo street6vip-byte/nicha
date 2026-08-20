@@ -6,12 +6,12 @@ import requests
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
-# 1. 올바른 모델명으로 수정
+# 정식 지원되는 Claude 모델 ID
 MODEL = "claude-3-5-sonnet-20241022"
 
 
 # ---------------------------------------------------------------------------
-# 기존 페르소나 정의 (유지)
+# 니차 페르소나 정의
 # ---------------------------------------------------------------------------
 PERSONA_SYSTEM_PROMPT = """\
 You are ghostwriting tweets for a fictional X (Twitter) account featuring
@@ -126,7 +126,7 @@ Hashtags:
 - Mix Thai and English hashtags naturally.
 - Examples:
   K-pop/dance: #Kpop #เต้น
-  Anime: #อนิเมะ #DemonSlayer
+  Anime: #อนิ메ะ #DemonSlayer
   University: #ชีวิตมหาลัย
   Bangkok daily life: #กรุงเทพ #Bangkok
   Cafe/food: #คาเฟ่ #ของกิน
@@ -199,8 +199,8 @@ def pick_topic() -> str:
     return random.choice(TOPIC_SEEDS)
 
 
-# 2. 기존 텍스트 전용 함수 (보존)
 def generate_tweet(topic_text: str | None = None) -> str:
+    """텍스트 전용 트윗 생성"""
     if topic_text is None:
         topic_text = pick_topic()
 
@@ -230,21 +230,20 @@ def generate_tweet(topic_text: str | None = None) -> str:
     return tweet_text.strip('"').strip("'").strip()
 
 
-# 3. 신규 이미지 기반 트윗 생성 함수 (추가)
 def generate_tweet_with_image(image_path: str) -> str:
-    """이미지 파일 경로를 받아 Claude Vision으로 전달하여 트윗 생성"""
+    """이미지 분석 기반 트윗 생성 (확장자별 미디어 타입 자동 처리)"""
     with open(image_path, "rb") as f:
         encoded_img = base64.b64encode(f.read()).decode("utf-8")
 
-  ext = os.path.splitext(image_path)[1].lower()
-if ext == ".png":
-    media_type = "image/png"
-elif ext == ".webp":
-    media_type = "image/webp"
-elif ext == ".gif":
-    media_type = "image/gif"
-else:
-    media_type = "image/jpeg"
+    ext = os.path.splitext(image_path)[1].lower()
+    if ext == ".png":
+        media_type = "image/png"
+    elif ext == ".webp":
+        media_type = "image/webp"
+    elif ext == ".gif":
+        media_type = "image/gif"
+    else:
+        media_type = "image/jpeg"
 
     response = requests.post(
         ANTHROPIC_API_URL,
@@ -279,6 +278,10 @@ else:
         },
         timeout=30,
     )
+
+    if not response.ok:
+        print(f"API Error Detail: {response.text}")
+
     response.raise_for_status()
     data = response.json()
     tweet_text = "".join(b["text"] for b in data["content"] if b["type"] == "text").strip()
