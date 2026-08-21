@@ -9,7 +9,7 @@ from generate_content import (
 API_KEY = os.environ.get("X_API_KEY")
 API_SECRET = os.environ.get("X_API_SECRET")
 ACCESS_TOKEN = os.environ.get("X_ACCESS_TOKEN")
-ACCESS_SECRET = os.environ.get("X_ACCESS_SECRET")
+ACCESS_SECRET = os.environ.get("X_ACCESS_TOKEN_SECRET") or os.environ.get("X_ACCESS_SECRET")
 
 
 def post_to_x():
