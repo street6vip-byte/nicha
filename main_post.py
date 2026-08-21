@@ -27,7 +27,7 @@ def post_to_x():
 
     print(f"생성된 트윗 내용:\n{tweet_text}")
 
-    # 3. 트위터(X) API v1 및 v2 클라이언트 설정 (이미지 업로드용 v1, 글 작성용 v2)
+    # 3. 트위터(X) API v1 및 v2 클라이언트 설정 (오타 수정: access_secret -> access_token_secret)
     auth = tweepy.OAuth1UserHandler(API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_SECRET)
     api_v1 = tweepy.API(auth)
 
@@ -35,7 +35,7 @@ def post_to_x():
         consumer_key=API_KEY,
         consumer_secret=API_SECRET,
         access_token=ACCESS_TOKEN,
-        access_secret=ACCESS_SECRET,
+        access_token_secret=ACCESS_SECRET,  # <-- 이 부분이 수정되었습니다!
     )
 
     # 4. 트위터에 업로드 실행
