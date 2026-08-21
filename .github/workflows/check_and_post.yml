@@ -50,5 +50,9 @@ jobs:
             fi
           done
           git diff --cached --quiet || git commit -m "chore: update pending approval state"
+          # 우리가 관리하지 않는 파일(예: 임시로 받은 telegram_image.jpg)에 생긴 변경은
+          # 커밋 대상이 아니므로 rebase 전에 되돌려서 충돌을 방지합니다.
+          git checkout -- . || true
+          git clean -fd -- telegram_image.jpg || true
           git pull --rebase origin main
           git push
