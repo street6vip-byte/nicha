@@ -2,7 +2,7 @@ name: Telegram to X Auto Post
 
 on:
   schedule:
-    - cron: '0 */3 * * *'  # 3시간마다 자동 검사
+    - cron: '*/30 * * * *'  # 30분마다 자동 검사
   workflow_dispatch:        # 수동 실행 버튼 활성화
 
 permissions:
@@ -40,6 +40,6 @@ jobs:
         run: |
           git config user.name "auto-post-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add -A -- pending_post.json pending/
+          git add -A -- pending_post.json pending/ schedule.json telegram_state.json
           git diff --cached --quiet || git commit -m "chore: update pending approval state"
           git push
