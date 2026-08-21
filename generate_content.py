@@ -53,6 +53,26 @@ def pick_topic() -> str:
     return random.choice(TOPIC_SEEDS)
 
 
+ROOM_PHOTOS = [
+    "room_bed.jpg",
+    "room_desk.jpg",
+    "room_vanity.jpg",
+    "room_tv.jpg",
+    "room_bathroom.jpg",
+]
+
+
+def get_random_room_photo() -> str | None:
+    """자동 스케줄 게시용: 깃허브에 올려둔 방 사진 중 랜덤으로 하나 선택."""
+    available_photos = [p for p in ROOM_PHOTOS if os.path.exists(p)]
+    if not available_photos:
+        print("사용 가능한 방 사진이 없습니다.")
+        return None
+    chosen_photo = random.choice(available_photos)
+    print(f"[자동 스케줄] 방 사진 랜덤 선택: {chosen_photo}")
+    return chosen_photo
+
+
 def get_latest_telegram_image() -> str | None:
     """텔레그램 봇으로 전송된 가장 최근 사진을 다운로드. 없으면 깃허브에 올린 방 사진 중 랜덤 선택!"""
     # 1. 텔레그램 확인 시도
