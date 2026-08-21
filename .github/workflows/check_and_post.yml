@@ -44,7 +44,7 @@ jobs:
         run: |
           git config user.name "auto-post-bot"
           git config user.email "actions@users.noreply.github.com"
-          for f in pending_post.json pending schedule.json telegram_state.json; do
+          for f in pending_post.json pending schedule.json telegram_state.json telegram_offset.json; do
             if [ -e "$f" ]; then
               git add -A -- "$f"
             fi
