@@ -1,10 +1,12 @@
 import os
 import tweepy
 from generate_content import (
-    get_latest_telegram_image,
     generate_tweet,
     generate_tweet_with_image,
+    get_random_room_photo,
 )
+from telegram_trigger import get_new_telegram_photo
+from schedule_manager import get_due_slot_index, mark_posted
 import telegram_approval as approval
 
 API_KEY = os.environ.get("X_API_KEY")
@@ -56,6 +58,8 @@ def handle_pending() -> bool:
         try:
             post_tweet(pending["text"], image_path)
             approval.notify_result(pending, reason=reason, success=True)
+            if pending.get("source") == "auto_schedule" and pending.get("slot_index") is not None:
+                mark_posted(pending["slot_index"])
             approval.clear_pending()
         except Exception as e:
             print(f"게시 실패: {e}")
@@ -71,25 +75,46 @@ def handle_pending() -> bool:
     return True
 
 
-def request_new_post() -> None:
-    image_path = get_latest_telegram_image()
+def try_telegram_trigger() -> bool:
+    """① 새로 전송된 텔레그램 사진이 있으면 그걸로 승인 요청을 보냅니다."""
+    image_path = get_new_telegram_photo()
+    if not image_path:
+        return False
 
-    if image_path and os.path.exists(image_path):
-        print(f"이미지({image_path})를 참고하여 트윗을 작성합니다.")
+    tweet_text = generate_tweet_with_image(image_path)
+    print(f"[텔레그램 트리거] 생성된 트윗 내용:\n{tweet_text}")
+    approval.send_approval_request(tweet_text, image_path, source="telegram_trigger")
+    return True
+
+
+def try_scheduled_auto_post() -> bool:
+    """② 오늘 스케줄 중 예정 시각이 지난 슬롯이 있으면 자동으로 트윗을 생성해 승인 요청을 보냅니다."""
+    slot_index = get_due_slot_index()
+    if slot_index is None:
+        return False
+
+    image_path = get_random_room_photo()
+    if image_path:
         tweet_text = generate_tweet_with_image(image_path)
     else:
-        print("텍스트 전용 트윗을 작성합니다.")
         tweet_text = generate_tweet()
 
-    print(f"생성된 트윗 내용:\n{tweet_text}")
-    approval.send_approval_request(tweet_text, image_path)
+    print(f"[자동 스케줄 #{slot_index}] 생성된 트윗 내용:\n{tweet_text}")
+    approval.send_approval_request(
+        tweet_text, image_path, source="auto_schedule", slot_index=slot_index
+    )
+    return True
 
 
 def main() -> None:
     try:
-        already_handled_or_waiting = handle_pending()
-        if not already_handled_or_waiting:
-            request_new_post()
+        if handle_pending():
+            return
+        if try_telegram_trigger():
+            return
+        if try_scheduled_auto_post():
+            return
+        print("이번 실행에서는 처리할 게 없습니다 (대기 요청 없음, 새 사진 없음, 예정 슬롯 없음).")
     except Exception as e:
         print(f"처리 중 에러 발생: {e}")
         raise e
