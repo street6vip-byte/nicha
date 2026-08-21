@@ -30,11 +30,16 @@ def post_tweet(tweet_text: str, image_path: str | None = None) -> None:
     )
 
     media_ids = None
-    if image_path and os.path.exists(image_path):
-        api_v1 = _get_api_v1()
-        media = api_v1.media_upload(image_path)
-        media_ids = [media.media_id]
-        print(f"이미지 업로드 완료 (media_id={media.media_id})")
+    if image_path:
+        if os.path.exists(image_path):
+            api_v1 = _get_api_v1()
+            media = api_v1.media_upload(image_path)
+            media_ids = [media.media_id]
+            print(f"이미지 업로드 완료 (media_id={media.media_id}, path={image_path})")
+        else:
+            print(f"⚠️ 이미지 경로는 있지만 파일이 실제로 존재하지 않습니다: {image_path} -> 텍스트만 게시됩니다.")
+    else:
+        print("이미지 경로가 없어서(image_path=None) 텍스트만 게시합니다.")
 
     response = client.create_tweet(text=tweet_text, media_ids=media_ids)
     print(f"트윗 포스팅 성공! 응답: {response}")
@@ -48,6 +53,7 @@ def handle_pending() -> bool:
 
     status = approval.check_response(pending)
     image_path = pending.get("image_path")
+    print(f"[디버그] pending image_path={image_path}, 실제 존재함={os.path.exists(image_path) if image_path else 'N/A'}")
 
     if status in ("approved", "timeout"):
         reason = (
