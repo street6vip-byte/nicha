@@ -166,3 +166,26 @@ def _answer_callback(callback_query_id: str, text: str) -> None:
         )
     except Exception:
         pass
+
+
+def notify_result(pending: dict, reason: str, success: bool | None, error: str | None = None) -> None:
+    """게시 결과(성공/실패/취소)를 원본 미리보기 메시지에 답장 형태로 알려줍니다."""
+    if success is True:
+        text = f"✅ X 게시 완료\n사유: {reason}"
+    elif success is False:
+        text = f"⚠️ X 게시 실패\n사유: {reason}\n에러: {error}"
+    else:
+        text = f"🚫 게시 취소됨\n사유: {reason}"
+
+    try:
+        requests.post(
+            _api("sendMessage"),
+            data={
+                "chat_id": pending["chat_id"],
+                "text": text,
+                "reply_to_message_id": pending["message_id"],
+            },
+            timeout=15,
+        )
+    except Exception as e:
+        print(f"결과 알림 전송 실패(무시하고 진행): {e}")
