@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write            # 승인 대기 상태(pending_post.json)를 커밋하기 위해 필요
 
+concurrency:
+  group: nicha-check-and-post
+  cancel-in-progress: false  # 이미 도는 실행은 끝까지 두고, 새 실행은 그게 끝날 때까지 대기
+
 jobs:
   post-to-x:
     runs-on: ubuntu-latest
@@ -46,4 +50,5 @@ jobs:
             fi
           done
           git diff --cached --quiet || git commit -m "chore: update pending approval state"
+          git pull --rebase origin main
           git push
