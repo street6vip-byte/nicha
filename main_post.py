@@ -27,21 +27,21 @@ def post_to_x():
 
     print(f"생성된 트윗 내용:\n{tweet_text}")
 
-    # 3. 트위터(X) API v1 및 v2 클라이언트 설정 (오타 수정: access_secret -> access_token_secret)
-    auth = tweepy.OAuth1UserHandler(API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_SECRET)
-    api_v1 = tweepy.API(auth)
-
+    # 3. 트위터(X) API v2 클라이언트 설정 (OAuth 1.0a 사용자 인증 포함)
     client_v2 = tweepy.Client(
         consumer_key=API_KEY,
         consumer_secret=API_SECRET,
         access_token=ACCESS_TOKEN,
-        access_token_secret=ACCESS_SECRET,  # <-- 이 부분이 수정되었습니다!
+        access_token_secret=ACCESS_SECRET,
     )
 
     # 4. 트위터에 업로드 실행
     try:
         if image_path and os.path.exists(image_path):
-            # 사진이 있는 경우 사진 업로드 후 트윗 작성
+            # v2 방식으로 미디어(이미지) 업로드 후 트윗 작성
+            auth = tweepy.OAuth1UserHandler(API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_SECRET)
+            api_v1 = tweepy.API(auth)
+            
             media = api_v1.media_upload(image_path)
             client_v2.create_tweet(
                 text=tweet_text, media_ids=[media.media_id_string]
