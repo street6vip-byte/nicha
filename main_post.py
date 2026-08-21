@@ -63,8 +63,20 @@ def handle_pending() -> bool:
             approval.clear_pending()
         except Exception as e:
             print(f"게시 실패: {e}")
-            approval.notify_result(pending, reason=reason, success=False, error=str(e))
-            # pending 파일을 지우지 않고 남겨둬서 다음 실행에서 재시도합니다.
+            if "duplicate content" in str(e).lower():
+                # 같은 문구로 재시도해도 계속 실패하는 종류의 오류라서, 재시도하지 않고 이 건은 포기합니다.
+                approval.notify_result(
+                    pending,
+                    reason=f"{reason} (중복 문구로 X가 거부함 -> 이 건은 재시도하지 않고 건너뜁니다)",
+                    success=False,
+                    error=str(e),
+                )
+                if pending.get("source") == "auto_schedule" and pending.get("slot_index") is not None:
+                    mark_posted(pending["slot_index"])  # 이 슬롯은 더 이상 재시도하지 않도록 처리 완료로 표시
+                approval.clear_pending()
+            else:
+                approval.notify_result(pending, reason=reason, success=False, error=str(e))
+                # 그 외 오류는 pending 파일을 지우지 않고 남겨둬서 다음 실행에서 재시도합니다.
     elif status == "rejected":
         print("거부됨 -> 게시하지 않습니다.")
         approval.notify_result(pending, reason="사용자 거부", success=None)
