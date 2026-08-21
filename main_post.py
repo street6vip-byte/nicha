@@ -1,6 +1,5 @@
 import os
-import requests
-from requests_oauthlib import OAuth1
+import tweepy
 from generate_content import (
     get_latest_telegram_image,
     generate_tweet,
@@ -14,10 +13,10 @@ ACCESS_SECRET = os.environ.get("X_ACCESS_SECRET")
 
 
 def post_to_x():
-    # 1. 사진 가져오기 시도 (글 작성 참고용)
+    # 1. 사진 가져오기
     image_path = get_latest_telegram_image()
 
-    # 2. 글 내용 생성
+    # 2. 트윗 내용 생성 (이미지 참고)
     if image_path and os.path.exists(image_path):
         print(f"이미지({image_path})를 참고하여 트윗을 작성합니다.")
         tweet_text = generate_tweet_with_image(image_path)
@@ -27,20 +26,17 @@ def post_to_x():
 
     print(f"생성된 트윗 내용:\n{tweet_text}")
 
-    # 3. OAuth 1.0a 인증 설정 및 트위터 v2 API 직접 호출 (401 완전 우회)
-    url = "https://api.twitter.com/2/tweets"
-    auth = OAuth1(API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_SECRET)
-    payload = {"text": tweet_text}
-
+    # 3. Tweepy v2 클라이언트를 통한 트윗 전송
     try:
-        response = requests.post(url, json=payload, auth=auth)
+        client = tweepy.Client(
+            consumer_key=API_KEY,
+            consumer_secret=API_SECRET,
+            access_token=ACCESS_TOKEN,
+            access_token_secret=ACCESS_SECRET,
+        )
 
-        if response.status_code == 201:
-            print(f"트윗 포스팅 성공! 응답: {response.json()}")
-        else:
-            print(f"트위터 포스팅 실패 (상태 코드: {response.status_code})")
-            print(f"에러 내용: {response.text}")
-            raise Exception(f"Twitter API Error: {response.text}")
+        response = client.create_tweet(text=tweet_text)
+        print(f"트윗 포스팅 성공! 응답: {response}")
 
     except Exception as e:
         print(f"트위터 포스팅 중 에러 발생: {e}")
