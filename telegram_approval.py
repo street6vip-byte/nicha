@@ -21,6 +21,8 @@ import uuid
 
 import requests
 
+from telegram_updates import fetch_updates
+
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
@@ -28,7 +30,7 @@ PENDING_FILE = "pending_post.json"
 PENDING_IMAGE_DIR = "pending"
 
 # 승인/거부 응답이 이 시간(분) 안에 안 오면 자동으로 '승인'으로 간주하고 게시합니다.
-TIMEOUT_MINUTES = 60
+TIMEOUT_MINUTES = 10
 
 
 def _api(method: str) -> str:
@@ -141,27 +143,22 @@ def check_response(pending: dict) -> str:
     callback_id = pending["callback_id"]
     message_id = pending["message_id"]
 
-    try:
-        updates = requests.get(_api("getUpdates"), params={"limit": 100}, timeout=15).json()
-    except Exception as e:
-        print(f"텔레그램 응답 확인 중 오류(다음 실행에서 재시도): {e}")
-        updates = {"ok": False}
+    updates = fetch_updates()
 
-    if updates.get("ok"):
-        for update in updates["result"]:
-            cq = update.get("callback_query")
-            if not cq:
-                continue
-            if cq.get("message", {}).get("message_id") != message_id:
-                continue
+    for update in updates:
+        cq = update.get("callback_query")
+        if not cq:
+            continue
+        if cq.get("message", {}).get("message_id") != message_id:
+            continue
 
-            data = cq.get("data", "")
-            if data == f"approve:{callback_id}":
-                _answer_callback(cq["id"], "승인되었습니다. 게시를 진행합니다.")
-                return "approved"
-            if data == f"reject:{callback_id}":
-                _answer_callback(cq["id"], "거부되었습니다. 게시하지 않습니다.")
-                return "rejected"
+        data = cq.get("data", "")
+        if data == f"approve:{callback_id}":
+            _answer_callback(cq["id"], "승인되었습니다. 게시를 진행합니다.")
+            return "approved"
+        if data == f"reject:{callback_id}":
+            _answer_callback(cq["id"], "거부되었습니다. 게시하지 않습니다.")
+            return "rejected"
 
     elapsed_minutes = (time.time() - pending["requested_at"]) / 60
     if elapsed_minutes >= pending.get("timeout_minutes", TIMEOUT_MINUTES):
