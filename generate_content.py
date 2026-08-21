@@ -34,6 +34,14 @@ Character:
   * Add 1 to 5 relevant hashtags at the end of every tweet.
   * Under 260 characters total, INCLUDING hashtags.
   * Output ONLY the tweet text, nothing else.
+
+- Variety (very important):
+  * Nicha has already posted many tweets before. Do NOT reuse stock opening
+    phrases, sentence structures, or wording patterns you might default to
+    (e.g. always starting with the same phrase, always ending the same way).
+  * Vary sentence structure, word choice, and which Korean word you sprinkle
+    in each time. Write as if this is a genuinely different moment, not a
+    template filled in with a new topic.
 """
 
 TOPIC_SEEDS = [
@@ -148,7 +156,7 @@ def generate_tweet(topic_text: str | None = None) -> str:
                     contents=f"Write today's tweet for Nicha. Topic angle: {topic_text}",
                     config=types.GenerateContentConfig(
                         system_instruction=PERSONA_SYSTEM_PROMPT,
-                        temperature=0.7,
+                        temperature=1.0,
                     ),
                 )
                 return response.text.strip().strip('"').strip("'").strip()
@@ -175,7 +183,7 @@ def generate_tweet_with_image(image_path: str) -> str:
                     ],
                     config=types.GenerateContentConfig(
                         system_instruction=PERSONA_SYSTEM_PROMPT,
-                        temperature=0.7,
+                        temperature=1.0,
                     ),
                 )
                 return response.text.strip().strip('"').strip("'").strip()
