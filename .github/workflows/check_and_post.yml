@@ -2,7 +2,7 @@ name: Telegram to X Auto Post
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # 30분마다 자동 검사
+    - cron: '*/5 * * * *'  # 5분마다 자동 검사
   workflow_dispatch:        # 수동 실행 버튼 활성화
 
 permissions:
