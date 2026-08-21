@@ -35,10 +35,21 @@ def _api(method: str) -> str:
     return f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/{method}"
 
 
-def send_approval_request(tweet_text: str, image_path: str | None) -> dict:
-    """승인/거부 버튼이 달린 미리보기 메시지를 텔레그램으로 전송하고 상태를 저장합니다."""
+def send_approval_request(
+    tweet_text: str,
+    image_path: str | None,
+    source: str = "auto_schedule",
+    slot_index: int | None = None,
+) -> dict:
+    """승인/거부 버튼이 달린 미리보기 메시지를 텔레그램으로 전송하고 상태를 저장합니다.
+
+    source: "telegram_trigger" (사용자가 보낸 사진으로 트리거) 또는
+            "auto_schedule" (페르소나 자동 스케줄 게시)
+    """
     if not TELEGRAM_CHAT_ID:
         raise Exception("TELEGRAM_CHAT_ID 환경변수가 설정되어 있지 않습니다.")
+
+    label = "📩 텔레그램 요청" if source == "telegram_trigger" else "⏰ 자동 게시"
 
     callback_id = uuid.uuid4().hex[:8]
     keyboard = {
@@ -48,7 +59,7 @@ def send_approval_request(tweet_text: str, image_path: str | None) -> dict:
         ]]
     }
     caption = (
-        f"게시 예정 트윗이에요, 확인해주세요! (미응답 시 {TIMEOUT_MINUTES}분 후 자동 게시)\n\n"
+        f"[{label}] 게시 예정 트윗이에요, 확인해주세요! (미응답 시 {TIMEOUT_MINUTES}분 후 자동 게시)\n\n"
         f"{tweet_text}"
     )
 
@@ -92,6 +103,8 @@ def send_approval_request(tweet_text: str, image_path: str | None) -> dict:
         "chat_id": TELEGRAM_CHAT_ID,
         "text": tweet_text,
         "image_path": saved_image_path,
+        "source": source,
+        "slot_index": slot_index,
         "requested_at": time.time(),
         "timeout_minutes": TIMEOUT_MINUTES,
     }
