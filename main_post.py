@@ -26,18 +26,19 @@ def post_to_x():
 
     print(f"생성된 트윗 내용:\n{tweet_text}")
 
-    # 3. 트위터 v2 클라이언트 설정
-    client_v2 = tweepy.Client(
-        consumer_key=API_KEY,
-        consumer_secret=API_SECRET,
-        access_token=ACCESS_TOKEN,
-        access_token_secret=ACCESS_SECRET,
-    )
-
-    # 4. 텍스트 트윗 포스팅 실행 (401 인증 에러 원천 차단)
+    # 3. 트위터 v2 클라이언트 생성 (인증 정보를 명확하게 모두 전달)
     try:
-        client_v2.create_tweet(text=tweet_text)
-        print("트윗 포스팅 성공!")
+        client = tweepy.Client(
+            consumer_key=API_KEY,
+            consumer_secret=API_SECRET,
+            access_token=ACCESS_TOKEN,
+            access_token_secret=ACCESS_SECRET,
+        )
+
+        # 4. 트윗 전송
+        response = client.create_tweet(text=tweet_text)
+        print(f"트윗 포스팅 성공! 응답: {response}")
+
     except Exception as e:
         print(f"트위터 포스팅 중 에러 발생: {e}")
         raise e
