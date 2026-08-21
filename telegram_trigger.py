@@ -15,7 +15,10 @@ import os
 
 import requests
 
+from telegram_updates import fetch_updates
+
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 STATE_FILE = "telegram_state.json"
 MAX_HISTORY = 50  # 파일이 무한정 커지지 않도록 최근 N개 file_id만 보관
 
@@ -42,19 +45,18 @@ def get_new_telegram_photo() -> str | None:
     state = _load_state()
     processed = set(state["processed_file_ids"])
 
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?limit=100"
-        res = requests.get(url, timeout=10).json()
-    except Exception as e:
-        print(f"[텔레그램 트리거] 업데이트 확인 중 오류: {e}")
+    if not TELEGRAM_CHAT_ID:
+        print("[텔레그램 트리거] TELEGRAM_CHAT_ID가 설정되어 있지 않아 안전하게 건너뜁니다.")
         return None
 
-    if not res.get("ok"):
-        return None
+    updates = fetch_updates()
 
     new_file_id = None
-    for update in res["result"]:
+    for update in updates:
         msg = update.get("message") or update.get("channel_post") or {}
+        # 지정된 나의 채팅(TELEGRAM_CHAT_ID)에서 온 메시지만 인식 (다른 그룹/채팅 유입 방지)
+        if str(msg.get("chat", {}).get("id")) != str(TELEGRAM_CHAT_ID):
+            continue
         if "photo" in msg:
             file_id = msg["photo"][-1]["file_id"]
             if file_id not in processed:
