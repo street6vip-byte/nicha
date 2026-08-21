@@ -26,7 +26,7 @@ def post_to_x():
 
     print(f"생성된 트윗 내용:\n{tweet_text}")
 
-    # 3. 트위터 v2 클라이언트 설정 (OAuth 1.0a 사용자 인증 정보를 담은 v2 방식)
+    # 3. 트위터 v2 클라이언트 설정 및 전송
     try:
         client = tweepy.Client(
             consumer_key=API_KEY,
@@ -35,7 +35,6 @@ def post_to_x():
             access_token_secret=ACCESS_SECRET,
         )
 
-        # 4. v2 전용 create_tweet으로 트윗 전송 (404 Not Found 및 401 해결)
         response = client.create_tweet(text=tweet_text)
         print(f"트윗 포스팅 성공! 응답: {response}")
 
