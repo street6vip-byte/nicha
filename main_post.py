@@ -26,16 +26,18 @@ def post_to_x():
 
     print(f"생성된 트윗 내용:\n{tweet_text}")
 
-    # 3. OAuth 1.0a 방식으로 인증 (v1 API 사용)
+    # 3. 트위터 v2 클라이언트 설정 (OAuth 1.0a 사용자 인증 정보를 담은 v2 방식)
     try:
-        auth = tweepy.OAuth1UserHandler(
-            API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_SECRET
+        client = tweepy.Client(
+            consumer_key=API_KEY,
+            consumer_secret=API_SECRET,
+            access_token=ACCESS_TOKEN,
+            access_token_secret=ACCESS_SECRET,
         )
-        api = tweepy.API(auth)
 
-        # 4. 텍스트 트윗 전송 (v1.1 update_status 사용)
-        response = api.update_status(status=tweet_text)
-        print(f"트윗 포스팅 성공! 응답 ID: {response.id}")
+        # 4. v2 전용 create_tweet으로 트윗 전송 (404 Not Found 및 401 해결)
+        response = client.create_tweet(text=tweet_text)
+        print(f"트윗 포스팅 성공! 응답: {response}")
 
     except Exception as e:
         print(f"트위터 포스팅 중 에러 발생: {e}")
