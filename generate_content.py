@@ -11,6 +11,10 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 PRIMARY_MODEL = "gemini-3-flash-preview"
 BACKUP_MODEL = "gemini-2.5-flash"
+# 방 사진의 인테리어를 유지하면서 구도만 다른 변형 사진을 생성할 때 쓰는 모델.
+# Gemini 이미지 생성 모델명은 자주 바뀌니, 실제 사용 전 Google AI 스튜디오/문서에서
+# 최신 이미지 생성 지원 모델명을 확인해서 필요하면 이 값을 바꿔주세요.
+IMAGE_GEN_MODEL = "gemini-2.5-flash-image"
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
@@ -34,14 +38,6 @@ Character:
   * Add 1 to 5 relevant hashtags at the end of every tweet.
   * Under 260 characters total, INCLUDING hashtags.
   * Output ONLY the tweet text, nothing else.
-
-- Variety (very important):
-  * Nicha has already posted many tweets before. Do NOT reuse stock opening
-    phrases, sentence structures, or wording patterns you might default to
-    (e.g. always starting with the same phrase, always ending the same way).
-  * Vary sentence structure, word choice, and which Korean word you sprinkle
-    in each time. Write as if this is a genuinely different moment, not a
-    template filled in with a new topic.
 """
 
 TOPIC_SEEDS = [
@@ -79,6 +75,48 @@ def get_random_room_photo() -> str | None:
     chosen_photo = random.choice(available_photos)
     print(f"[자동 스케줄] 방 사진 랜덤 선택: {chosen_photo}")
     return chosen_photo
+
+
+ROOM_VARIANT_PROMPT = """\
+Using the attached photo as a strict visual reference, generate a new photorealistic
+photo of the EXACT SAME room interior: same furniture, same wall decor/art, same
+lighting fixtures, same color scheme, same layout and same objects on surfaces.
+Do NOT invent new furniture or change the decor. Only vary the camera angle,
+composition, framing, or exact moment captured — as if someone took another casual
+phone photo of the same room a little later. Keep the photorealistic, unstaged,
+everyday phone-photo look (not a professional real-estate photo, not overly polished).
+Output only the image."""
+
+
+def generate_room_variant(reference_photo_path: str) -> str | None:
+    """레퍼런스 방 사진을 기반으로, 같은 인테리어를 유지하면서 구도만 다른
+    새 사진을 생성합니다. 실패하면 None을 반환하고, 호출부에서 원본 사진으로
+    대체해서 쓰면 됩니다."""
+    try:
+        ref_img = Image.open(reference_photo_path)
+    except Exception as e:
+        print(f"[방 사진 변형] 레퍼런스 사진 로드 실패: {e}")
+        return None
+
+    for attempt in range(2):
+        try:
+            response = client.models.generate_content(
+                model=IMAGE_GEN_MODEL,
+                contents=[ref_img, ROOM_VARIANT_PROMPT],
+            )
+            for part in response.candidates[0].content.parts:
+                if getattr(part, "inline_data", None) is not None:
+                    save_path = "generated_room.jpg"
+                    with open(save_path, "wb") as f:
+                        f.write(part.inline_data.data)
+                    print(f"[방 사진 변형] 생성 완료: {save_path}")
+                    return save_path
+            print("[방 사진 변형] 응답에 이미지 데이터가 없습니다.")
+        except Exception as e:
+            print(f"[방 사진 변형] 시도 {attempt + 1} 실패: {e}")
+            time.sleep(3)
+
+    return None
 
 
 def get_latest_telegram_image() -> str | None:
@@ -156,7 +194,7 @@ def generate_tweet(topic_text: str | None = None) -> str:
                     contents=f"Write today's tweet for Nicha. Topic angle: {topic_text}",
                     config=types.GenerateContentConfig(
                         system_instruction=PERSONA_SYSTEM_PROMPT,
-                        temperature=1.0,
+                        temperature=0.7,
                     ),
                 )
                 return response.text.strip().strip('"').strip("'").strip()
@@ -183,7 +221,7 @@ def generate_tweet_with_image(image_path: str) -> str:
                     ],
                     config=types.GenerateContentConfig(
                         system_instruction=PERSONA_SYSTEM_PROMPT,
-                        temperature=1.0,
+                        temperature=0.7,
                     ),
                 )
                 return response.text.strip().strip('"').strip("'").strip()
