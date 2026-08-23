@@ -1,3 +1,4 @@
+import base64
 import io
 import os
 import random
@@ -79,59 +80,95 @@ ROOM_VARIANT_PROMPT = (
     "phone photo, photorealistic, everyday snapshot, unstaged"
 )
 
-CF_ACCOUNT_ID = os.environ.get("CF_ACCOUNT_ID")
-CF_API_TOKEN = os.environ.get("CF_API_TOKEN")
-CF_IMG2IMG_MODEL = "@cf/runwayml/stable-diffusion-v1-5-img2img"
+REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN")
+# replicate.com 에서 해당 모델 페이지 -> 'API' 탭에 나오는 최신 version ID로
+# 교체해서 쓰세요 (모델 버전은 종종 갱신됩니다). 아래는 stability-ai/sdxl 예시입니다.
+REPLICATE_MODEL_VERSION = "39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08"
 
 
-def generate_room_variant(reference_photo_path: str, strength: float = 0.45) -> str | None:
-    """Cloudflare Workers AI(무료 티어)의 img2img 모델로 레퍼런스 방 사진의 변형을
-    생성합니다. 실패하면 None을 반환하고, 호출부에서 원본 사진으로 대체해서 쓰면 됩니다.
+def generate_room_variant(
+    reference_photo_path: str, prompt_strength: float = 0.5, max_wait_seconds: int = 90
+) -> str | None:
+    """Replicate의 img2img 모델로 레퍼런스 방 사진의 변형을 생성합니다.
+    실패하면 None을 반환하고, 호출부에서 원본 사진으로 대체해서 쓰면 됩니다.
 
-    strength: 0에 가까울수록 원본에 거의 가깝게, 1에 가까울수록 원본에서 많이
-    벗어남. 방 인테리어를 최대한 유지하려면 낮은 값(0.3~0.5) 권장."""
-    if not CF_ACCOUNT_ID or not CF_API_TOKEN:
-        print("[방 사진 변형] CF_ACCOUNT_ID 또는 CF_API_TOKEN이 설정되어 있지 않습니다.")
+    prompt_strength: 0에 가까울수록 원본에 거의 가깝게, 1에 가까울수록 원본에서
+    많이 벗어남. 방 인테리어를 최대한 유지하려면 낮은 값(0.3~0.5) 권장."""
+    if not REPLICATE_API_TOKEN:
+        print("[방 사진 변형] REPLICATE_API_TOKEN이 설정되어 있지 않습니다.")
         return None
 
     try:
-        img = Image.open(reference_photo_path).convert("RGB")
-        img.thumbnail((768, 768))
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=90)
-        image_bytes = list(buf.getvalue())
+        with open(reference_photo_path, "rb") as f:
+            image_b64 = base64.b64encode(f.read()).decode()
+        image_data_uri = f"data:image/jpeg;base64,{image_b64}"
     except Exception as e:
-        print(f"[방 사진 변형] 레퍼런스 사진 처리 실패: {e}")
+        print(f"[방 사진 변형] 레퍼런스 사진 로드 실패: {e}")
         return None
-
-    url = f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT_ID}/ai/run/{CF_IMG2IMG_MODEL}"
-    payload = {
-        "prompt": ROOM_VARIANT_PROMPT,
-        "image": image_bytes,
-        "strength": strength,
-    }
 
     try:
         resp = requests.post(
-            url,
-            headers={"Authorization": f"Bearer {CF_API_TOKEN}"},
-            json=payload,
-            timeout=60,
+            "https://api.replicate.com/v1/predictions",
+            headers={
+                "Authorization": f"Bearer {REPLICATE_API_TOKEN}",
+                "Content-Type": "application/json",
+                "Prefer": "wait",  # 최대 60초까지는 동기적으로 완료를 기다려줌
+            },
+            json={
+                "version": REPLICATE_MODEL_VERSION,
+                "input": {
+                    "image": image_data_uri,
+                    "prompt": ROOM_VARIANT_PROMPT,
+                    "prompt_strength": prompt_strength,
+                },
+            },
+            timeout=90,
         )
     except Exception as e:
-        print(f"[방 사진 변형] 요청 실패: {e}")
+        print(f"[방 사진 변형] Replicate 요청 실패: {e}")
         return None
 
-    content_type = resp.headers.get("content-type", "")
-    if resp.status_code == 200 and "image" in content_type:
+    if resp.status_code not in (200, 201):
+        print(f"[방 사진 변형] Replicate 생성 실패: status={resp.status_code}, body={resp.text[:300]}")
+        return None
+
+    data = resp.json()
+    get_url = data.get("urls", {}).get("get")
+
+    # 60초 안에 안 끝났으면(status가 여전히 starting/processing) 직접 폴링
+    waited = 0
+    while data.get("status") in ("starting", "processing") and waited < max_wait_seconds and get_url:
+        time.sleep(3)
+        waited += 3
+        try:
+            poll_resp = requests.get(
+                get_url, headers={"Authorization": f"Bearer {REPLICATE_API_TOKEN}"}, timeout=15
+            )
+            data = poll_resp.json()
+        except Exception as e:
+            print(f"[방 사진 변형] 상태 확인 실패: {e}")
+            break
+
+    if data.get("status") != "succeeded":
+        print(f"[방 사진 변형] Replicate 생성 실패/미완료: status={data.get('status')}, error={data.get('error')}")
+        return None
+
+    output = data.get("output")
+    if not output:
+        print("[방 사진 변형] Replicate 응답에 결과 이미지가 없습니다.")
+        return None
+    image_url = output[0] if isinstance(output, list) else output
+
+    try:
+        img_resp = requests.get(image_url, timeout=30)
         save_path = "generated_room.jpg"
         with open(save_path, "wb") as f:
-            f.write(resp.content)
+            f.write(img_resp.content)
         print(f"[방 사진 변형] 생성 완료: {save_path}")
         return save_path
-
-    print(f"[방 사진 변형] 생성 실패: status={resp.status_code}, body={resp.text[:300]}")
-    return None
+    except Exception as e:
+        print(f"[방 사진 변형] 결과 이미지 다운로드 실패: {e}")
+        return None
 
 
 def get_latest_telegram_image() -> str | None:
