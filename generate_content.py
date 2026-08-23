@@ -12,7 +12,7 @@ GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 PRIMARY_MODEL = "gemini-3-flash-preview"
-BACKUP_MODEL = "gemini-2.5-flash"
+BACKUP_MODEL = "gemini-3.6-flash"
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
