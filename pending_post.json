@@ -1,0 +1,11 @@
+{
+  "callback_id": "8ca2424a",
+  "message_id": 93,
+  "chat_id": "693330752",
+  "text": "ตลาดน้ำพัทยาวันนี้คนเยอะจัง แต่ของกินเยอะแบบ 대박! 🛶 เดินดูนั่นดูนี่เพลินมากกก บรรยากาศคือดีสุดๆ อยากลองนั่งเรือเที่ยวรอบๆ เลยจัง #ตลาดน้ำ4ภาค #พัทยา #Pattaya #เที่ยวไทย",
+  "image_path": "pending/telegram_image.jpg",
+  "source": "telegram_trigger",
+  "slot_index": null,
+  "requested_at": 1787478343.1766365,
+  "timeout_minutes": 10
+}
