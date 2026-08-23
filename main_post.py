@@ -124,7 +124,8 @@ def try_telegram_trigger(webhook_update: dict | None) -> bool:
 
 
 def try_scheduled_auto_post() -> bool:
-    """② 오늘 스케줄 중 예정 시각이 지난 슬롯이 있으면 자동으로 트윗을 생성해 승인 요청을 보냅니다."""
+    """② 오늘 스케줄 중 예정 시각이 지난 슬롯이 있으면, 승인 절차 없이 즉시 게시합니다.
+    (텔레그램 트리거 승인 흐름과 완전히 분리되어 pending_post.json을 쓰지 않습니다.)"""
     slot_index = get_due_slot_index()
     if slot_index is None:
         return False
@@ -143,9 +144,18 @@ def try_scheduled_auto_post() -> bool:
         tweet_text = generate_tweet()
 
     print(f"[자동 스케줄 #{slot_index}] 생성된 트윗 내용:\n{tweet_text}")
-    approval.send_approval_request(
-        tweet_text, image_path, source="auto_schedule", slot_index=slot_index
-    )
+
+    try:
+        post_tweet(tweet_text, image_path)
+        mark_posted(slot_index)
+        approval.notify_direct_post(tweet_text, success=True)
+    except Exception as e:
+        print(f"[자동 스케줄] 게시 실패: {e}")
+        if "duplicate content" in str(e).lower():
+            # 재시도해도 계속 실패하는 종류라서, 이 슬롯은 포기하고 넘어갑니다.
+            mark_posted(slot_index)
+        approval.notify_direct_post(tweet_text, success=False, error=str(e))
+
     return True
 
 
