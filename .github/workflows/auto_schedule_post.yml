@@ -1,0 +1,54 @@
+name: Auto Schedule Post
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'     # 15분마다 예정 슬롯 확인
+  workflow_dispatch:            # 수동 실행 버튼 활성화
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nicha-auto-schedule-post
+  cancel-in-progress: false
+
+jobs:
+  auto-post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run auto_post.py
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python auto_post.py
+
+      - name: Commit schedule state
+        run: |
+          git config user.name "auto-post-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A -- schedule.json 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "chore: update schedule state"
+          git checkout -- . || true
+          git clean -fd -- generated_room.jpg || true
+          git pull --rebase origin main
+          git push

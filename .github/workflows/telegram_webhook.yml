@@ -1,0 +1,62 @@
+name: Telegram Trigger and Approval
+
+on:
+  repository_dispatch:
+    types: [telegram_update]   # Cloudflare Worker가 텔레그램 웹훅을 받으면 즉시 트리거
+  schedule:
+    - cron: '*/15 * * * *'     # 웹훅 실패 대비 백업용 (승인 타임아웃 처리 등)
+  workflow_dispatch:            # 수동 실행 버튼 활성화
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nicha-telegram-handler
+  cancel-in-progress: false
+
+jobs:
+  telegram-handler:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Save webhook payload (if triggered by webhook)
+        if: github.event_name == 'repository_dispatch'
+        env:
+          PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: echo "$PAYLOAD" > telegram_update.json
+
+      - name: Run telegram_handler.py
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python telegram_handler.py
+
+      - name: Commit telegram approval state
+        run: |
+          git config user.name "auto-post-bot"
+          git config user.email "actions@users.noreply.github.com"
+          for f in pending_post.json pending telegram_state.json; do
+            git add -A -- "$f" 2>/dev/null || true
+          done
+          git diff --cached --quiet || git commit -m "chore: update telegram approval state"
+          git checkout -- . || true
+          git clean -fd -- telegram_image.jpg telegram_update.json || true
+          git pull --rebase origin main
+          git push
