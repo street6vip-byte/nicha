@@ -53,9 +53,7 @@ jobs:
           git config user.name "auto-post-bot"
           git config user.email "actions@users.noreply.github.com"
           for f in pending_post.json pending schedule.json telegram_state.json; do
-            if [ -e "$f" ]; then
-              git add -A -- "$f"
-            fi
+            git add -A -- "$f" 2>/dev/null || true
           done
           git diff --cached --quiet || git commit -m "chore: update pending approval state"
           # 우리가 관리하지 않는 파일(telegram_image.jpg, telegram_update.json 등)에 생긴
