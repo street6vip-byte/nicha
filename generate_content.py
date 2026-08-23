@@ -1,3 +1,4 @@
+import io
 import os
 import random
 import time
@@ -11,10 +12,6 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 PRIMARY_MODEL = "gemini-3-flash-preview"
 BACKUP_MODEL = "gemini-2.5-flash"
-# 방 사진의 인테리어를 유지하면서 구도만 다른 변형 사진을 생성할 때 쓰는 모델.
-# Gemini 이미지 생성 모델명은 자주 바뀌니, 실제 사용 전 Google AI 스튜디오/문서에서
-# 최신 이미지 생성 지원 모델명을 확인해서 필요하면 이 값을 바꿔주세요.
-IMAGE_GEN_MODEL = "gemini-2.5-flash-image"
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
@@ -77,45 +74,63 @@ def get_random_room_photo() -> str | None:
     return chosen_photo
 
 
-ROOM_VARIANT_PROMPT = """\
-Using the attached photo as a strict visual reference, generate a new photorealistic
-photo of the EXACT SAME room interior: same furniture, same wall decor/art, same
-lighting fixtures, same color scheme, same layout and same objects on surfaces.
-Do NOT invent new furniture or change the decor. Only vary the camera angle,
-composition, framing, or exact moment captured — as if someone took another casual
-phone photo of the same room a little later. Keep the photorealistic, unstaged,
-everyday phone-photo look (not a professional real-estate photo, not overly polished).
-Output only the image."""
+ROOM_VARIANT_PROMPT = (
+    "same room interior, same furniture and wall decor, same lighting, candid casual "
+    "phone photo, photorealistic, everyday snapshot, unstaged"
+)
+
+CF_ACCOUNT_ID = os.environ.get("CF_ACCOUNT_ID")
+CF_API_TOKEN = os.environ.get("CF_API_TOKEN")
+CF_IMG2IMG_MODEL = "@cf/runwayml/stable-diffusion-v1-5-img2img"
 
 
-def generate_room_variant(reference_photo_path: str) -> str | None:
-    """레퍼런스 방 사진을 기반으로, 같은 인테리어를 유지하면서 구도만 다른
-    새 사진을 생성합니다. 실패하면 None을 반환하고, 호출부에서 원본 사진으로
-    대체해서 쓰면 됩니다."""
-    try:
-        ref_img = Image.open(reference_photo_path)
-    except Exception as e:
-        print(f"[방 사진 변형] 레퍼런스 사진 로드 실패: {e}")
+def generate_room_variant(reference_photo_path: str, strength: float = 0.45) -> str | None:
+    """Cloudflare Workers AI(무료 티어)의 img2img 모델로 레퍼런스 방 사진의 변형을
+    생성합니다. 실패하면 None을 반환하고, 호출부에서 원본 사진으로 대체해서 쓰면 됩니다.
+
+    strength: 0에 가까울수록 원본에 거의 가깝게, 1에 가까울수록 원본에서 많이
+    벗어남. 방 인테리어를 최대한 유지하려면 낮은 값(0.3~0.5) 권장."""
+    if not CF_ACCOUNT_ID or not CF_API_TOKEN:
+        print("[방 사진 변형] CF_ACCOUNT_ID 또는 CF_API_TOKEN이 설정되어 있지 않습니다.")
         return None
 
-    for attempt in range(2):
-        try:
-            response = client.models.generate_content(
-                model=IMAGE_GEN_MODEL,
-                contents=[ref_img, ROOM_VARIANT_PROMPT],
-            )
-            for part in response.candidates[0].content.parts:
-                if getattr(part, "inline_data", None) is not None:
-                    save_path = "generated_room.jpg"
-                    with open(save_path, "wb") as f:
-                        f.write(part.inline_data.data)
-                    print(f"[방 사진 변형] 생성 완료: {save_path}")
-                    return save_path
-            print("[방 사진 변형] 응답에 이미지 데이터가 없습니다.")
-        except Exception as e:
-            print(f"[방 사진 변형] 시도 {attempt + 1} 실패: {e}")
-            time.sleep(3)
+    try:
+        img = Image.open(reference_photo_path).convert("RGB")
+        img.thumbnail((768, 768))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        image_bytes = list(buf.getvalue())
+    except Exception as e:
+        print(f"[방 사진 변형] 레퍼런스 사진 처리 실패: {e}")
+        return None
 
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT_ID}/ai/run/{CF_IMG2IMG_MODEL}"
+    payload = {
+        "prompt": ROOM_VARIANT_PROMPT,
+        "image": image_bytes,
+        "strength": strength,
+    }
+
+    try:
+        resp = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {CF_API_TOKEN}"},
+            json=payload,
+            timeout=60,
+        )
+    except Exception as e:
+        print(f"[방 사진 변형] 요청 실패: {e}")
+        return None
+
+    content_type = resp.headers.get("content-type", "")
+    if resp.status_code == 200 and "image" in content_type:
+        save_path = "generated_room.jpg"
+        with open(save_path, "wb") as f:
+            f.write(resp.content)
+        print(f"[방 사진 변형] 생성 완료: {save_path}")
+        return save_path
+
+    print(f"[방 사진 변형] 생성 실패: status={resp.status_code}, body={resp.text[:300]}")
     return None
 
 
