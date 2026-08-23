@@ -2,23 +2,23 @@
   "date": "2026-08-23",
   "slots": [
     {
-      "time": "13:20",
-      "posted": true
-    },
-    {
-      "time": "15:50",
-      "posted": true
-    },
-    {
-      "time": "18:19",
+      "time": "08:10",
       "posted": false
     },
     {
-      "time": "20:03",
+      "time": "11:00",
       "posted": false
     },
     {
-      "time": "22:22",
+      "time": "13:09",
+      "posted": false
+    },
+    {
+      "time": "16:23",
+      "posted": false
+    },
+    {
+      "time": "20:58",
       "posted": false
     }
   ]
