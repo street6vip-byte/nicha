@@ -81,9 +81,8 @@ ROOM_VARIANT_PROMPT = (
 )
 
 REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN")
-# replicate.com 에서 해당 모델 페이지 -> 'API' 탭에 나오는 최신 version ID로
-# 교체해서 쓰세요 (모델 버전은 종종 갱신됩니다). 아래는 stability-ai/sdxl 예시입니다.
-REPLICATE_MODEL_VERSION = "39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08"
+# replicate.com 모델 페이지 -> Versions 탭에서 확인한 버전 해시.
+REPLICATE_MODEL_VERSION = "7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc"
 
 
 def generate_room_variant(
