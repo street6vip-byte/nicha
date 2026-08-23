@@ -4,6 +4,7 @@ from generate_content import (
     generate_tweet,
     generate_tweet_with_image,
     get_random_room_photo,
+    generate_room_variant,
 )
 from telegram_trigger import get_new_telegram_photo
 from schedule_manager import get_due_slot_index, mark_posted
@@ -128,7 +129,14 @@ def try_scheduled_auto_post() -> bool:
     if slot_index is None:
         return False
 
-    image_path = get_random_room_photo()
+    reference_photo = get_random_room_photo()
+    image_path = None
+    if reference_photo:
+        image_path = generate_room_variant(reference_photo)
+        if not image_path:
+            print("[자동 스케줄] 방 사진 변형 생성 실패 -> 원본 방 사진을 그대로 사용합니다.")
+            image_path = reference_photo
+
     if image_path:
         tweet_text = generate_tweet_with_image(image_path)
     else:
