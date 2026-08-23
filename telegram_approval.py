@@ -5,13 +5,18 @@
   1. send_approval_request(): 트윗 초안(텍스트+이미지)을 텔레그램으로 보내고,
      '승인'/'거부' 인라인 버튼을 붙입니다. 상태는 pending_post.json에 저장.
   2. check_response(): 다음 실행 때 호출되어, 사용자가 버튼을 눌렀는지 확인합니다.
-     - 승인 버튼 클릭 -> "approved"
-     - 거부 버튼 클릭 -> "rejected"
-     - timeout_minutes 안에 응답이 없으면 -> "timeout" (호출부에서 자동 게시 처리)
+     - 웹훅으로 트리거된 실행이면 전달받은 telegram_update(callback_query)로 즉시 판단
+     - 그 외(백업 cron 등, 웹훅 데이터 없음)에는 시간 경과만으로 타임아웃 여부 판단
+     - 승인 버튼 클릭 -> "approved" / 거부 버튼 클릭 -> "rejected"
+     - timeout_minutes 지남 -> "timeout" (호출부에서 자동 게시 처리)
      - 그 외 -> "waiting" (다음 실행에서 다시 확인)
 
 pending_post.json 과 pending/ 이미지 파일은 GitHub Actions 실행이 끝날 때
 워크플로우에서 git commit 해줘야 다음 실행에서도 이어집니다 (check_and_post.yml 참고).
+
+주의: 텔레그램은 웹훅을 등록하면 getUpdates(폴링) 호출을 거부합니다. 그래서 이
+모듈은 더 이상 getUpdates를 직접 호출하지 않고, 웹훅으로 전달받은 데이터에만
+의존합니다.
 """
 
 import json
@@ -20,8 +25,6 @@ import time
 import uuid
 
 import requests
-
-from telegram_updates import fetch_updates
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -135,30 +138,26 @@ def clear_pending() -> None:
         os.remove(PENDING_FILE)
 
 
-def check_response(pending: dict) -> str:
+def check_response(pending: dict, webhook_update: dict | None = None) -> str:
     """
     텔레그램에서 승인/거부 버튼 응답이 왔는지 확인합니다.
+    webhook_update: 이번 실행이 웹훅으로 트리거됐다면 그 원본 update 데이터.
+                     백업 cron 등 웹훅 데이터가 없는 실행에서는 None.
     반환값: "approved" | "rejected" | "timeout" | "waiting"
     """
     callback_id = pending["callback_id"]
     message_id = pending["message_id"]
 
-    updates = fetch_updates()
-
-    for update in updates:
-        cq = update.get("callback_query")
-        if not cq:
-            continue
-        if cq.get("message", {}).get("message_id") != message_id:
-            continue
-
-        data = cq.get("data", "")
-        if data == f"approve:{callback_id}":
-            _answer_callback(cq["id"], "승인되었습니다. 게시를 진행합니다.")
-            return "approved"
-        if data == f"reject:{callback_id}":
-            _answer_callback(cq["id"], "거부되었습니다. 게시하지 않습니다.")
-            return "rejected"
+    if webhook_update:
+        cq = webhook_update.get("callback_query")
+        if cq and cq.get("message", {}).get("message_id") == message_id:
+            data = cq.get("data", "")
+            if data == f"approve:{callback_id}":
+                _answer_callback(cq["id"], "승인되었습니다. 게시를 진행합니다.")
+                return "approved"
+            if data == f"reject:{callback_id}":
+                _answer_callback(cq["id"], "거부되었습니다. 게시하지 않습니다.")
+                return "rejected"
 
     elapsed_minutes = (time.time() - pending["requested_at"]) / 60
     if elapsed_minutes >= pending.get("timeout_minutes", TIMEOUT_MINUTES):

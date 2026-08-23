@@ -7,6 +7,7 @@ from generate_content import (
 )
 from telegram_trigger import get_new_telegram_photo
 from schedule_manager import get_due_slot_index, mark_posted
+from webhook_payload import load_webhook_update
 import telegram_approval as approval
 
 API_KEY = os.environ.get("X_API_KEY")
@@ -45,13 +46,13 @@ def post_tweet(tweet_text: str, image_path: str | None = None) -> None:
     print(f"트윗 포스팅 성공! 응답: {response}")
 
 
-def handle_pending() -> bool:
+def handle_pending(webhook_update: dict | None) -> bool:
     """대기 중인 승인 요청을 처리합니다. 처리(또는 대기 유지)했으면 True, 대기 요청이 아예 없었으면 False."""
     pending = approval.load_pending()
     if pending is None:
         return False
 
-    status = approval.check_response(pending)
+    status = approval.check_response(pending, webhook_update)
     image_path = pending.get("image_path")
     print(f"[디버그] pending image_path={image_path}, 실제 존재함={os.path.exists(image_path) if image_path else 'N/A'}")
 
@@ -109,9 +110,9 @@ def handle_pending() -> bool:
     return True
 
 
-def try_telegram_trigger() -> bool:
-    """① 새로 전송된 텔레그램 사진이 있으면 그걸로 승인 요청을 보냅니다."""
-    image_path = get_new_telegram_photo()
+def try_telegram_trigger(webhook_update: dict | None) -> bool:
+    """① 웹훅으로 새 텔레그램 사진이 전달됐으면 그걸로 승인 요청을 보냅니다."""
+    image_path = get_new_telegram_photo(webhook_update)
     if not image_path:
         return False
 
@@ -141,10 +142,13 @@ def try_scheduled_auto_post() -> bool:
 
 
 def main() -> None:
+    webhook_update = load_webhook_update()
+    print(f"[디버그] webhook_update 존재함={webhook_update is not None}")
+
     try:
-        if handle_pending():
+        if handle_pending(webhook_update):
             return
-        if try_telegram_trigger():
+        if try_telegram_trigger(webhook_update):
             return
         if try_scheduled_auto_post():
             return

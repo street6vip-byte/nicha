@@ -1,21 +1,20 @@
 """
-'텔레그램 트리거' 전용 모듈: 아직 게시에 쓰지 않은 새 사진이 있는지 감지합니다.
+'텔레그램 트리거' 전용 모듈: 웹훅으로 전달받은 사진 메시지를 처리합니다.
 
-generate_content.get_latest_telegram_image()는 매번 '가장 최근 사진'을 그대로
-다시 돌려주기 때문에(sticky), 같은 사진으로 계속 트리거가 걸리는 문제가 있었습니다.
-이 모듈은 telegram_state.json에 이미 처리한 file_id 목록을 기록해두고,
-정말 '새로' 온 사진일 때만 감지되도록 합니다.
+웹훅 방식으로 전환하면서 더 이상 getUpdates(폴링)를 쓰지 않습니다. 대신
+check_and_post.yml이 repository_dispatch(웹훅)로 트리거될 때마다, 그 실행이
+받은 telegram_update 하나를 그대로 넘겨받아서 "이게 내 사진 메시지인가?"만
+판단합니다.
 
-telegram_state.json은 다른 상태 파일과 마찬가지로 워크플로우 실행 후 git commit 되어야
-다음 실행에서도 이어집니다 (check_and_post.yml 참고).
+telegram_state.json에는 이미 처리한 file_id를 기록해서, 혹시 텔레그램이
+같은 업데이트를 중복 전송하더라도(웹훅은 드물게 재전송될 수 있음) 같은
+사진으로 중복 트리거되지 않도록 방지합니다.
 """
 
 import json
 import os
 
 import requests
-
-from telegram_updates import fetch_updates
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -36,38 +35,30 @@ def _save_state(state: dict) -> None:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
 
-def get_new_telegram_photo() -> str | None:
-    """아직 처리한 적 없는 새 텔레그램 사진이 있으면 다운로드해서 로컬 경로를 반환하고,
-    처리 완료로 기록합니다. 새 사진이 없으면 None을 반환합니다."""
-    if not TELEGRAM_BOT_TOKEN:
+def get_new_telegram_photo(webhook_update: dict | None) -> str | None:
+    """웹훅으로 전달받은 update가 나의 채팅에서 온 사진 메시지면 다운로드해서
+    로컬 경로를 반환합니다. 아니면(사진 아님/다른 채팅/이미 처리함/웹훅 데이터 없음) None."""
+    if not webhook_update or not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return None
+
+    msg = webhook_update.get("message") or webhook_update.get("channel_post") or {}
+
+    # 지정된 나의 채팅(TELEGRAM_CHAT_ID)에서 온 메시지만 인식 (다른 그룹/채팅 유입 방지)
+    if str(msg.get("chat", {}).get("id")) != str(TELEGRAM_CHAT_ID):
+        return None
+
+    if "photo" not in msg:
+        return None
+
+    file_id = msg["photo"][-1]["file_id"]
 
     state = _load_state()
-    processed = set(state["processed_file_ids"])
-
-    if not TELEGRAM_CHAT_ID:
-        print("[텔레그램 트리거] TELEGRAM_CHAT_ID가 설정되어 있지 않아 안전하게 건너뜁니다.")
-        return None
-
-    updates = fetch_updates()
-
-    new_file_id = None
-    for update in updates:
-        msg = update.get("message") or update.get("channel_post") or {}
-        # 지정된 나의 채팅(TELEGRAM_CHAT_ID)에서 온 메시지만 인식 (다른 그룹/채팅 유입 방지)
-        if str(msg.get("chat", {}).get("id")) != str(TELEGRAM_CHAT_ID):
-            continue
-        if "photo" in msg:
-            file_id = msg["photo"][-1]["file_id"]
-            if file_id not in processed:
-                new_file_id = file_id  # 여러 개면 가장 마지막(최신) 것으로 계속 갱신
-
-    if not new_file_id:
-        return None
+    if file_id in state["processed_file_ids"]:
+        return None  # 이미 처리한 사진(웹훅 중복 전송 등)
 
     try:
         file_info = requests.get(
-            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={new_file_id}",
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}",
             timeout=10,
         ).json()
         file_path = file_info["result"]["file_path"]
@@ -83,7 +74,7 @@ def get_new_telegram_photo() -> str | None:
         print(f"[텔레그램 트리거] 사진 다운로드 실패: {e}")
         return None
 
-    state["processed_file_ids"].append(new_file_id)
+    state["processed_file_ids"].append(file_id)
     _save_state(state)
     print(f"[텔레그램 트리거] 새 사진 감지 및 다운로드 완료: {save_path}")
     return save_path
