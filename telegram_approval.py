@@ -177,6 +177,27 @@ def _answer_callback(callback_query_id: str, text: str) -> None:
         pass
 
 
+def notify_direct_post(tweet_text: str, success: bool, error: str | None = None) -> None:
+    """승인 절차 없이 바로 게시되는 자동 스케줄 게시 결과를 텔레그램으로 알려줍니다.
+    버튼 없이 결과만 전달하는 단순 알림입니다."""
+    if not TELEGRAM_CHAT_ID:
+        return
+
+    if success:
+        text = f"⏰ [자동 게시] X 게시 완료\n\n{tweet_text}"
+    else:
+        text = f"⚠️ [자동 게시] X 게시 실패\n에러: {error}"
+
+    try:
+        requests.post(
+            _api("sendMessage"),
+            data={"chat_id": TELEGRAM_CHAT_ID, "text": text},
+            timeout=15,
+        )
+    except Exception as e:
+        print(f"[자동 게시] 결과 알림 전송 실패(무시하고 진행): {e}")
+
+
 def notify_result(pending: dict, reason: str, success: bool | None, error: str | None = None) -> None:
     """게시 결과(성공/실패/취소)를 원본 미리보기 메시지에 답장 형태로 알려줍니다."""
     if success is True:
